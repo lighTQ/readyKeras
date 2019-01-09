@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="root@111.207.63.210:7630">
+  <component name="PublishConfigData" autoUpload="Always" serverName="root@101.224.136.94:22">
     <serverData>
+      <paths name="root@101.224.136.94:22">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/pycharm_project_852" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/Models" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
       <paths name="root@111.207.63.210:7630">
         <serverdata>
           <mappings>

@@ -7,6 +7,7 @@ import cv2
 import argparse
 import numpy as np
 from keras.layers import *
+from keras import  layers
 from  keras.models import *
 from keras.optimizers import *
 from keras.utils import np_utils
@@ -90,16 +91,103 @@ def parse_arguments(argv):
 
 def build_model(width, height, channel_num, num_classes, UserOptimizer='adam'):
 
-    inputs = Input((width, width, channel_num))
-    x = inputs
-    for i, layer_num in enumerate([2, 2, 3, 3, 3]):
-        for j in range(layer_num):
-            x = Conv2D(32 * 2 ** i, 3, padding='same', activation='relu')(x)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
-        x = MaxPooling2D(2)(x)
+    img_input = Input((width, width, channel_num))
+    inputs = img_input
+
+    # Block 1
+    x = Conv2D(32, (3, 3), strides=(2, 2), use_bias=False)(img_input)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = Conv2D(64, (3, 3), use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+
+    residual = Conv2D(128, (1, 1), strides=(2, 2), padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    # Block 2
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+
+    # Block 2 Pool
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(256, (1, 1), strides=(2, 2), padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    # Block 3
+    x = Activation('relu')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = SeparableConv2D(256, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+
+    # Block 3 Pool
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
+    x = layers.add([x, residual])
+
+    residual = Conv2D(728, (1, 1), strides=(2, 2), padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    # Block 4
+    x = Activation('relu')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
+    x = layers.add([x, residual])
+
+    # Block 5 - 12
+    for i in range(8):
+        residual = x
+
+        x = Activation('relu')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False)(x)
+        x = BatchNormalization()(x)
+
+        x = layers.add([x, residual])
+
+    residual = Conv2D(1024, (1, 1), strides=(2, 2), padding='same', use_bias=False)(x)
+    residual = BatchNormalization()(residual)
+
+    # Block 13
+    x = Activation('relu')(x)
+    x = SeparableConv2D(728, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+    x = SeparableConv2D(1024, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+
+    # Block 13 Pool
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
+    x = layers.add([x, residual])
+
+    # Block 14
+    x = SeparableConv2D(1536, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+
+    # Block 14 part 2
+    x = SeparableConv2D(2048, (3, 3), padding='same', use_bias=False)(x)
+    x = BatchNormalization()(x)
+    x = Activation('relu')(x)
+
+    # Fully Connected Layer
     x = GlobalAveragePooling2D()(x)
-    x = Dropout(0.5)(x)
 
     all_optimizers = {'sgd': SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True),
                       'rmsprop': RMSprop(lr=0.001, rho=0.9, epsilon=1e-6),
@@ -116,23 +204,19 @@ def build_model(width, height, channel_num, num_classes, UserOptimizer='adam'):
 
     if (int(num_classes >= 2)):
         x = Dense(num_classes, activation='softmax')(x)
-        model = Model(inputs, x)
+        model = Model(inputs, x, name='xception')
         model.compile(optimizer=UserOptimizer,
                       loss='categorical_crossentropy',
                       metrics=['accuracy'])
 
-        # model.add(Dense(num_classes, activation='softmax'))
-        # model.compile(loss='categorical_crossentropy', optimizer=UserOptimizer, metrics=['accuracy'])
+
     else:
 
         x = Dense(num_classes, activation='sigmoid')(x)
-        model = Model(inputs, x)
+        model = Model(inputs, x, name='xception')
         model.compile(optimizer=UserOptimizer,
                       loss='binary_crossentropy',
                       metrics=['accuracy'])
-
-        # model.add(Dense(num_classes, activation='sigmoid'))
-        # model.compile(loss='binary_crossentropy', optimizer=UserOptimizer, metrics=['accuracy'])
     return model
 
 # 定义计算模型评估指标
@@ -160,12 +244,8 @@ def call_back_metrics(X_train, X_valid, X_test, y_train, y_valid, y_test,model):
 
     # 训练集模型评估结果
     metric_train = metrics_result(y_train, train_y_pred)
-    print(type(metric_train), metric_train)
-
     metric_valid = metrics_result(y_valid, valid_y_pred)
-    print(type(metric_valid), metric_valid)
     metric_test = metrics_result(y_test, test_y_pred)
-    print(type(metric_test), metric_test)
 
     # 调用metric_result 方法返回的是tuple： 元素顺序为：  _recall, _precision, _f1, _acc, _cm
     call_res = {'model_id': modelId, 'model_userid': model_userid, 'model_version': model_version, 'ams_id': ams_id,

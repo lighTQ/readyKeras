@@ -10,30 +10,30 @@ from keras.layers import *
 from  keras.models import *
 from keras.optimizers import *
 from keras.utils import np_utils
-# from trainmonitor import TrainingMonitor\
-from  sklearn.utils.class_weight import compute_class_weight
-from keras.callbacks import ModelCheckpoint
+from tensorflow.python.keras import backend
+from tensorflow.python.keras import backend
 
+# from trainmonitor import TrainingMonitor
 from sklearn.model_selection import train_test_split
 # from jsonrpc import  Server
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score, accuracy_score
-# import  keras as K
-# config = tf.ConfigProto(intra_op_parallelism_threads=NUM_PARALLEL_EXEC_UNITS, inter_op_parallelism_threads=2, allow_soft_placement=True, device_count = {'CPU': NUM_PARALLEL_EXEC_UNITS })
-# session = tf.Session(config=config)
-# K.set_session(session)
-
-# os.environ["OMP_NUM_THREADS"] = "NUM_PARALLEL_EXEC_UNITS"
-# os.environ["KMP_BLOCKTIME"] = "30"
-# os.environ["KMP_SETTINGS"] = "1"
-# os.environ["KMP_AFFINITY"]= "granularity=fine,verbose,compact,1,0"
 
 # from sklearn.utils import shuffle
+from PIL import Image
+from  tqdm import tqdm
+#from jsonrpcclient import request
+
+# from keras.applications import VGG16
+# from trainmonitor import TrainingMonitor
+# from trainingmonitor import TrainingMonitor
 # import  matplotlib.pyplot as plt
 # from keras.callbacks import TensorBoard
+# import  pyjsonrpc
 #
 
 def preprocessing_img(img_src, width, height, validate_percent, test_percent):
     X, y = [], []
+
     categorical_num = len(set(os.listdir(img_src)))
     for i, folder in enumerate(os.listdir(img_src)):
         print(i, folder)
@@ -49,17 +49,17 @@ def preprocessing_img(img_src, width, height, validate_percent, test_percent):
             img = cv2.resize(image, dsize=(width, height), interpolation=cv2.INTER_CUBIC)
             X.append(img)
             y.append(i)
-    X = np.array(X).astype('float32') / 255
-    y_label = np_utils.to_categorical(y, categorical_num)
+    X = np.array(X).astype('float32') / 255.0
+    y = np_utils.to_categorical(y, categorical_num)
     # y = np_utils.to_categorical(y).reshape(-1, categorical_num)
     print(X.shape)
-    print(y_label.shape)
-    print(len(y))
+    print(y.shape)
 
-    x_train, X_test, y_train, y_test = train_test_split(X, y_label, test_size=test_percent, shuffle=True)
+    x_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_percent, shuffle=True)
     X_train, X_valid, y_train, y_valid = train_test_split(x_train, y_train, test_size=validate_percent, shuffle=True)
     print('preprocessing images is OK..')
-    return X_train, X_valid, X_test, y_train, y_valid, y_test,y,categorical_num
+    return X_train, X_valid, X_test, y_train, y_valid, y_test,categorical_num
+
 
 def parse_arguments(argv):
     ap = argparse.ArgumentParser()
@@ -69,7 +69,7 @@ def parse_arguments(argv):
     ap.add_argument('-test_percent', type=float, help='test_dataset_percent')
     ap.add_argument('-validata_percent', type=float , help='validata_dataset_percent')
     ap.add_argument('-channel_num', type=int , help='channels_num')
-    # ap.add_argument('-num_classes', type=int , help='num_classes')
+    ap.add_argument('-num_classes', type=int , help='num_classes')
 
     ap.add_argument('-batch_size', type=int , help='batch_size')
     ap.add_argument('-lr', type=float, help='learning_rate')
@@ -88,79 +88,178 @@ def parse_arguments(argv):
 
     return vars(ap.parse_args())
 
-# keras.backend.clear_session()
+
+def correct_pad(backend,inputs, kernel_size):
+    """Returns a tuple for zero-padding for 2D convolution with downsampling.
+
+    # Arguments
+        input_size: An integer or tuple/list of 2 integers.
+        kernel_size: An integer or tuple/list of 2 integers.
+
+    # Returns
+        A tuple.
+    """
+    img_dim = 2 if backend.image_data_format() == 'channels_first' else 1
+    input_size = backend.int_shape(inputs)[img_dim:(img_dim + 2)]
+
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+
+    if input_size[0] is None:
+        adjust = (1, 1)
+    else:
+        adjust = (1 - input_size[0] % 2, 1 - input_size[1] % 2)
+
+    correct = (kernel_size[0] // 2, kernel_size[1] // 2)
+
+    return ((correct[0] - adjust[0], correct[0]),
+            (correct[1] - adjust[1], correct[1]))
 
 
-def build_model(width, height, channel_num, num_classes, user_optimizer='adam'):
+def _make_divisible(v, divisor, min_value=None):
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
 
-    inputs = Input((width, height, channel_num))
-    conv1 = Conv2D(filters=96, kernel_size=(7, 7), strides=(2, 2), padding='same', activation='relu')(inputs)
-    x= MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(conv1)
-    x= Conv2D(filters=16, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(x)
-    x = Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(x)
-    x= Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(x)
-    xout = Concatenate(axis=-1)([fire1_expan1, fire1_expan2])
-    xsquee = Conv2D(filters=16, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xout)
-    xexpan1 = Conv2D(filters=64, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire2_expan1, fire2_expan2])
-    xsquee = Conv2D(filters=32, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xout)
-    xexpan1 = Conv2D(filters=128, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=128, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire3_expan1, fire3_expan2])
-    xl2 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(fire3_out)
-    xsquee = Conv2D(filters=32, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xl2)
-    xexpan1 = Conv2D(filters=128, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=128, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire4_expan1, fire4_expan2])
-    xsquee = Conv2D(filters=48, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xout)
-    xexpan1 = Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=192, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire5_expan1, fire5_expan2])
-    xsquee = Conv2D(filters=48, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xout)
-    xexpan1 = Conv2D(filters=192, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=192, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire6_expan1, fire6_expan2])
-    xsquee = Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xout)
-    xexpan1 = Conv2D(filters=256, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=256, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire7_expan1, fire7_expan2])
-    xl3 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2))(fire7_out)
-    xsquee = Conv2D(filters=64, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xl3)
-    xexpan1 = Conv2D(filters=256, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xexpan2 = Conv2D(filters=256, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(
-    xsquee)
-    xout = Concatenate(axis=-1)([fire8_expan1, fire8_expan2])
-    x= Conv2D(filters=1000, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='relu')(fire8_out)
-    xGlobalAvgPool2D(data_format='channels_last')(conv2)
-    x= Model(inputs=x, outputs=Gap)
+def _inverted_res_block(inputs, expansion, stride, alpha, filters, block_id):
+    in_channels = backend.int_shape(inputs)[-1]
+    pointwise_conv_filters = int(filters * alpha)
+    pointwise_filters = _make_divisible(pointwise_conv_filters, 8)
+    x = inputs
+    prefix = 'block_{}_'.format(block_id)
+
+    if block_id:
+        # Expand
+        x = Conv2D(expansion * in_channels,
+                   kernel_size=1,
+                   padding='same',
+                   use_bias=False,
+                   activation=None,
+                   name=prefix + 'expand')(x)
+        x = BatchNormalization(epsilon=1e-3,
+                               momentum=0.999,
+                               name=prefix + 'expand_BN')(x)
+        x = ReLU(6., name=prefix + 'expand_relu')(x)
+    else:
+        prefix = 'expanded_conv_'
+
+    # Depthwise
+    if stride == 2:
+        x = ZeroPadding2D(padding=correct_pad(backend, x, 3),
+                                 name=prefix + 'pad')(x)
+    x = DepthwiseConv2D(kernel_size=3,
+                        strides=stride,
+                        activation=None,
+                        use_bias=False,
+                        padding='same' if stride == 1 else 'valid',
+                        name=prefix + 'depthwise')(x)
+    x = BatchNormalization(epsilon=1e-3,
+                           momentum=0.999,
+                           name=prefix + 'depthwise_BN')(x)
+
+    x = ReLU(6., name=prefix + 'depthwise_relu')(x)
+
+    # Project
+    x = Conv2D(pointwise_filters,
+                      kernel_size=1,
+                      padding='same',
+                      use_bias=False,
+                      activation=None,
+                      name=prefix + 'project')(x)
+    x = BatchNormalization(
+        epsilon=1e-3, momentum=0.999, name=prefix + 'project_BN')(x)
+
+    if in_channels == pointwise_filters and stride == 1:
+        return Add(name=prefix + 'add')([inputs, x])
+    return x
 
 
+# 构建模型
+def build_model(width, height, channel_num, num_classes, UserOptimizer='adam'):
 
-    # model.add(Dense(num_classes, activation='softmax'))
-    # model.compile(optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
-    # model.summary()
+    alpha = 1.0
+    input_shape = (width, width, channel_num)
+    img_input = Input(shape=input_shape)
 
+
+    first_block_filters = _make_divisible(32 * alpha, 8)
+    x = ZeroPadding2D(padding=correct_pad(backend, img_input, 3),
+                      name='Conv1_pad')(img_input)
+    x = Conv2D(first_block_filters,
+               kernel_size=3,
+               strides=(2, 2),
+               padding='valid',
+               use_bias=False,
+               name='Conv1')(x)
+    x = BatchNormalization(
+        epsilon=1e-3, momentum=0.999, name='bn_Conv1')(x)
+    x = ReLU(6., name='Conv1_relu')(x)
+
+    x = _inverted_res_block(x, filters=16, alpha=alpha, stride=1,
+                            expansion=1, block_id=0)
+
+    x = _inverted_res_block(x, filters=24, alpha=alpha, stride=2,
+                            expansion=6, block_id=1)
+    x = _inverted_res_block(x, filters=24, alpha=alpha, stride=1,
+                            expansion=6, block_id=2)
+
+    x = _inverted_res_block(x, filters=32, alpha=alpha, stride=2,
+                            expansion=6, block_id=3)
+    x = _inverted_res_block(x, filters=32, alpha=alpha, stride=1,
+                            expansion=6, block_id=4)
+    x = _inverted_res_block(x, filters=32, alpha=alpha, stride=1,
+                            expansion=6, block_id=5)
+
+    x = _inverted_res_block(x, filters=64, alpha=alpha, stride=2,
+                            expansion=6, block_id=6)
+    x = _inverted_res_block(x, filters=64, alpha=alpha, stride=1,
+                            expansion=6, block_id=7)
+    x = _inverted_res_block(x, filters=64, alpha=alpha, stride=1,
+                            expansion=6, block_id=8)
+    x = _inverted_res_block(x, filters=64, alpha=alpha, stride=1,
+                            expansion=6, block_id=9)
+
+    x = _inverted_res_block(x, filters=96, alpha=alpha, stride=1,
+                            expansion=6, block_id=10)
+    x = _inverted_res_block(x, filters=96, alpha=alpha, stride=1,
+                            expansion=6, block_id=11)
+    x = _inverted_res_block(x, filters=96, alpha=alpha, stride=1,
+                            expansion=6, block_id=12)
+
+    x = _inverted_res_block(x, filters=160, alpha=alpha, stride=2,
+                            expansion=6, block_id=13)
+    x = _inverted_res_block(x, filters=160, alpha=alpha, stride=1,
+                            expansion=6, block_id=14)
+    x = _inverted_res_block(x, filters=160, alpha=alpha, stride=1,
+                            expansion=6, block_id=15)
+
+    x = _inverted_res_block(x, filters=320, alpha=alpha, stride=1,
+                            expansion=6, block_id=16)
+
+    # no alpha applied to last conv as stated in the paper:
+    # if the width multiplier is greater than 1 we
+    # increase the number of output channels
+    if alpha > 1.0:
+        last_block_filters = _make_divisible(1280 * alpha, 8)
+    else:
+        last_block_filters = 1280
+
+    x = Conv2D(last_block_filters,
+               kernel_size=1,
+               use_bias=False,
+               name='Conv_1')(x)
+    x = BatchNormalization(epsilon=1e-3,
+                           momentum=0.999,
+                           name='Conv_1_bn')(x)
+    x = ReLU(6., name='out_relu')(x)
+
+    x = GlobalAveragePooling2D()(x)
+
+    #
     all_optimizers = {'sgd': SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True),
                       'rmsprop': RMSprop(lr=0.001, rho=0.9, epsilon=1e-6),
                       'adagrad': Adagrad(lr=0.01, decay=1e-6),
@@ -172,29 +271,16 @@ def build_model(width, height, channel_num, num_classes, user_optimizer='adam'):
                       }
 
     UserOptimizer = all_optimizers[user_optimizer]
-    print("use define optimier is ", UserOptimizer)
+    print("use define optimier is ", user_optimizer)
 
-    if (int(num_classes >= 2)):
-
-        x = Dense(num_classes, activation='softmax')(x)
-        model = Model(inputs, x)
-        model.compile(optimizer=UserOptimizer,
-                      loss='categorical_crossentropy',
-                      metrics=['accuracy'])
-
-        # model.add(Dense(num_classes, activation='softmax'))
-        # model.compile(loss='categorical_crossentropy', optimizer=UserOptimizer, metrics=['accuracy'])
-    else:
-
-        x = Dense(num_classes, activation='sigmoid')(x)
-        model = Model(inputs, x)
-        model.compile(optimizer=UserOptimizer,
-                      loss='binary_crossentropy',
-                      metrics=['accuracy'])
-
-        # model.add(Dense(num_classes, activation='sigmoid'))
-        # model.compile(loss='binary_crossentropy', optimizer=UserOptimizer, metrics=['accuracy'])
+    x = Dense(num_classes, activation='softmax',
+                     use_bias=True, name='Logits')(x)
+    model = Model(img_input, x)
+    model.compile(optimizer=UserOptimizer,
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy'])
     return model
+
 
 # 定义计算模型评估指标
 def metrics_result(y_label, y_pred):
@@ -221,9 +307,12 @@ def call_back_metrics(X_train, X_valid, X_test, y_train, y_valid, y_test,model):
 
     # 训练集模型评估结果
     metric_train = metrics_result(y_train, train_y_pred)
-    metric_valid = metrics_result(y_valid, valid_y_pred)
-    metric_test = metrics_result(y_test, test_y_pred)
+    print(type(metric_train), metric_train)
 
+    metric_valid = metrics_result(y_valid, valid_y_pred)
+    print(type(metric_valid), metric_valid)
+    metric_test = metrics_result(y_test, test_y_pred)
+    print(type(metric_test), metric_test)
 
     # 调用metric_result 方法返回的是tuple： 元素顺序为：  _recall, _precision, _f1, _acc, _cm
     call_res = {'model_id': modelId, 'model_userid': model_userid, 'model_version': model_version, 'ams_id': ams_id,
@@ -265,29 +354,14 @@ if __name__ == '__main__':
 
 
     # 数据集预处理
-    X_train, X_valid, X_test, y_train, y_valid, y_test, y, categorical_num= preprocessing_img(img_src, width, height,
+    X_train, X_valid, X_test, y_train, y_valid, y_test,num_classes = preprocessing_img(img_src, width, height,
                                                                            validata_percent, test_percent)
     #
     # model = build_model(width,height,channel_num,num_classes)
     # 模型构建
-    model = build_model(width, height, channel_num, categorical_num, user_optimizer)
+    model = build_model(width, height, channel_num, num_classes, user_optimizer)
+
     print(model.summary())
-
-    # print('type class:', y,np.unique(y))
-    #
-    # class_weights = compute_class_weight('balanced', np.unique(y),y)  # computing weights of different classes
-    # if not os.path.exists(save_dir):
-    #     os.makedirs(save_dir)
-    #
-    # filepath = os.path.join(save_dir,model_name)+'.h5'
-    #
-    # checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
-    #
-    # callbacks_list = [checkpoint]  # model check pointing based on validation loss
-    #
-    # model.fit(X_train, y_train, epochs=epochs, validation_data=(X_valid, y_valid), class_weight=class_weights,callbacks=callbacks_list)
-
-
 
     # 使用tensorfboard实时监控
     # tensorboard = TensorBoard(log_dir='./logs', histogram_freq=0,
@@ -301,12 +375,7 @@ if __name__ == '__main__':
     # http_client = pyjsonrpc.HttpClient(
     #     url="http://192.168.10.141:8080/rpc/myservice"
     # )
-    #http_client = Server('http://192.168.10.141:8080/rpc/myservice')
 
-
-
-    # http_client = Server(jsonrpcMlClientPoint)
-    # print('client is : ',http_client)
     # # 训练可视化，返回val_acc, val_loss, train_acc, train_loss
     # callbacks = [TrainingMonitor(http_client=http_client, model_id=modelId, model_userid=model_userid,
     #                              model_version=model_version, ams_id=ams_id)]
@@ -314,8 +383,8 @@ if __name__ == '__main__':
     history = model.fit(X_train, y_train, batch_size=batch_size, epochs=epochs,
                         # callbacks=callbacks,
                         validation_data=(X_valid,y_valid), verbose=1)
-#
-# # 指标返回
+
+# 指标返回
     call_res = call_back_metrics(X_train, X_valid, X_test, y_train, y_valid, y_test,model)
 
 
@@ -323,9 +392,6 @@ if __name__ == '__main__':
     # 回调，向服务端发送评估指标
 
     # response = http_client.modelTrain(str(call_res))
-
-    # response = request("http://192.168.10.141:8080/rpc/myservice", "modelTrain", str(call_res))
-
     # http_client.call("sayHelloWorld",call_res)
 
     if not os.path.exists(save_dir):
@@ -333,8 +399,3 @@ if __name__ == '__main__':
     model.save(os.path.join(save_dir, model_name) + '.h5', overwrite=True)
 
     print('\r\nmodel has been saved in  ', os.path.join(save_dir, model_name) + '.h5')
-
-    # print(type(history.history['loss']))
-    # print(history.history['loss'])
-    # print(type((history.history['acc'])))
-    # print(type(history.history['loss']))
