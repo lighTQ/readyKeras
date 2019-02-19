@@ -239,8 +239,3 @@ if __name__ == '__main__':
     model.save(os.path.join(save_dir, model_name) + '.h5', overwrite=True)
 
     print('\r\nmodel has been saved in  ', os.path.join(save_dir, model_name) + '.h5')
-
-    print(type(history.history['loss']))
-    print(history.history['loss'])
-    print(type((history.history['acc'])))
-    print(type(history.history['loss']))
